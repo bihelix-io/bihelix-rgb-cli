@@ -1,0 +1,81 @@
+[workspace]
+members = [
+  ".",
+]
+
+[workspace.package]
+version = "0.11.0-beta.3"
+keywords = ["bitcoin", "lightning", "rgb", "smart-contracts"]
+categories = ["cryptography::cryptocurrencies"]
+
+authors = ["xxx <xxx@xx.x>"]
+homepage = "https://github.com/xxx"
+repository = "https://github.com/xx/xx"
+rust-version = "1.67" # Due to strict encoding library
+edition = "2021"
+license = "Apache-2.0"
+
+[package]
+name = "bihelix-rgb-cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = { workspace = true }
+amplify = { workspace = true }
+baid58 = { workspace = true }
+strict_types = { workspace = true, features = ["serde"] }
+commit_verify = { workspace = true }
+bp-seals = { workspace = true }
+bp-std = { workspace = true, features = ["serde"] }
+bp-core = { workspace = true }
+rgb-std = { workspace = true, features = ["serde"] }
+rgb-runtime = { version = "0.11.0-beta.1",  features = ["all"] }
+log = { workspace = true }
+env_logger = "0.10.1"
+clap = { version = "4.4.8", features = ["derive", "env"] }
+shellexpand = "3.1.0"
+serde_crate = { workspace = true }
+serde_yaml = { workspace = true }
+serde_json = "1.0.108"
+toml = "0.8.8"
+bitcoin = "0.31.1"
+rgb-psbt = { workspace = true }
+rgb-core =  { workspace = true }
+descriptors =  { workspace = true }
+bdk =   { workspace = true }
+base64 = { workspace = true }
+rgb-persist-fs ={ workspace = true }
+dirs-next = "2.0.0"
+rgb-schemata = { workspace = true }
+rand = { workspace = true }
+
+[workspace.dependencies]
+
+rgb-schemata =  "0.11.0-beta.4"
+rgb-persist-fs = { version = "0.11.0" }
+base64 = "0.13.0"
+bdk = { version = "0.29", features = ["electrum", "keys-bip39"] }
+rgb-core = "0.11.0-beta.4"
+anyhow = "1.0"
+amplify = "4.5.0"
+baid58 = "0.4.4"
+bitcoin = "0.31.1"
+commit_verify = "0.11.0-beta.3"
+strict_types = "1.6.3"
+bp-core = "0.11.0-beta.3"
+bp-seals = "0.11.0-beta.3"
+bp-std = "0.11.0-beta.3"
+descriptors = "0.11.0-beta.3"
+psbt = { version = "0.11.0-beta.3", features = ["all"] }
+rgb-std = { version = "0.11.0-beta.4", features = ["fs"] }
+rgb-psbt = { version = "0.11.0-beta.3" }
+serde_crate = { package = "serde", version = "1", features = ["derive"] }
+serde_yaml = "0.9.19"
+log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug"] }
+rand = "0.8.5"
+
+
+
