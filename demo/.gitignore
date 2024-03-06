@@ -1,0 +1,10 @@
+data0/
+data1/
+data2/
+datacore
+dataindex
+tx.psbt
+tx.psbt.json
+docker-compose.yml
+contracts/other.yaml
+contracts/usdt.yaml
