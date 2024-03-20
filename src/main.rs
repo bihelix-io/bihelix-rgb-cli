@@ -5,22 +5,6 @@ mod utils;
 use std::collections::BTreeMap;
 use std::fs;
 
-use anyhow::anyhow;
-use base64::{ encode, decode};
-use bdk::bitcoin::Network;
-use bdk::bitcoin::
-    psbt::Psbt;
-use bdk::wallet::tx_builder::TxOrdering;
-use bdk::wallet::AddressIndex;
-use bdk::{
-    blockchain::{log_progress, Blockchain},
-    database::BatchDatabase,
-    Error as BdkError, FeeRate, KeychainKind, Wallet,
-};
-use bdk::{SignOptions, SyncOptions};
-use bdk::bitcoin::script::PushBytesBuf;
-use clap::Parser;
-use serde_json::{json, Value as JsonValue};
 use crate::cmds::{key::handle_key_subcommand, rgb::handle_rgb_subcommand};
 use crate::opts::{
     Cli, Command, OfflineWalletSubCommand, OnlineWalletSubCommand, WalletOpts, WalletSubCommand,
@@ -29,11 +13,24 @@ use crate::utils::{
     is_final, maybe_descriptor_wallet_name, new_blockchain, new_wallet, open_database,
     prepare_home_dir,
 };
+use anyhow::anyhow;
+use base64::{decode, encode};
+use bdk::bitcoin::psbt::Psbt;
+use bdk::bitcoin::script::PushBytesBuf;
+use bdk::bitcoin::Network;
+use bdk::wallet::tx_builder::TxOrdering;
+use bdk::wallet::AddressIndex;
+use bdk::{
+    blockchain::{log_progress, Blockchain},
+    database::BatchDatabase,
+    Error as BdkError, FeeRate, KeychainKind, Wallet,
+};
+use bdk::{SignOptions, SyncOptions};
+use clap::Parser;
+use serde_json::{json, Value as JsonValue};
 
 // 1040 / 630 = 1.65
 pub const FEE_FACTOR: f32 = 1.65;
-
-
 
 fn main() {
     env_logger::init();
@@ -51,7 +48,6 @@ fn main() {
 
 pub fn handle_command(cli: Cli) -> Result<JsonValue, anyhow::Error> {
     let network = cli.network;
-    let home_dir = prepare_home_dir(cli.datadir)?;
     match cli.command {
         Command::ExtractPsbt { path } => {
             let psbt: Psbt = Psbt::deserialize(&fs::read(path)?)?;
@@ -59,9 +55,11 @@ pub fn handle_command(cli: Cli) -> Result<JsonValue, anyhow::Error> {
         }
         Command::Key { subcommand } => handle_key_subcommand(network, subcommand),
         Command::Wallet {
+            datadir,
             wallet_opts,
             subcommand: WalletSubCommand::OnlineWalletSubCommand(online_subcommand),
         } => {
+            let home_dir = prepare_home_dir(datadir)?;
             let wallet_opts = maybe_descriptor_wallet_name(wallet_opts, cli.network)?;
             let database = open_database(&wallet_opts, &home_dir)?;
             let blockchain = new_blockchain(&wallet_opts)?;
@@ -69,9 +67,11 @@ pub fn handle_command(cli: Cli) -> Result<JsonValue, anyhow::Error> {
             handle_online_wallet_subcommand(&wallet, &blockchain, online_subcommand)
         }
         Command::Wallet {
+            datadir,
             wallet_opts,
             subcommand: WalletSubCommand::OfflineWalletSubCommand(offline_subcommand),
         } => {
+            let home_dir = prepare_home_dir(datadir)?;
             let wallet_opts = maybe_descriptor_wallet_name(wallet_opts, cli.network)?;
             let database = open_database(&wallet_opts, &home_dir)?;
             log::info!("wallet_opts: {:?}", wallet_opts);
@@ -89,12 +89,10 @@ pub fn handle_command(cli: Cli) -> Result<JsonValue, anyhow::Error> {
                 Network::Bitcoin => Network::Bitcoin,
                 Network::Signet => Network::Signet,
                 _ => todo!(),
-
             };
             handle_rgb_subcommand(data_dir, &chain, electrum, subcommand)
-            
+
             // handle_rgb_subcommand(data_dir, electrum, subcommand)
-            
         }
     }
 }
@@ -197,7 +195,8 @@ where
                 let push_bytes = PushBytesBuf::try_from(op_return_data).unwrap();
                 tx_builder.add_data(&push_bytes);
             } else if let Some(string_data) = add_string {
-                let push_bytes = PushBytesBuf::try_from(string_data.as_bytes().to_vec()).expect("add string failed");
+                let push_bytes = PushBytesBuf::try_from(string_data.as_bytes().to_vec())
+                    .expect("add string failed");
 
                 tx_builder.add_data(&push_bytes);
             }
