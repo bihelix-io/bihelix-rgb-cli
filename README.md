@@ -1,5 +1,5 @@
 
-## Bihelix RGB CLI
+## BiHelix RGB CLI
 The rgb command-line tool, which combined with the Bitcoin Development Kit and the rgb 0.11 libraries, developed by the Behelix Team is used to import, export, issue, and query your off-chain RGB20(currently support RGB20) assets.
 Notes: In the current stage, the user can only import, and query their rgb20 asset by this cli tool, can not transfer the rgb asset(bihelix-cli don't include rgb single transfer).
 ## Usage
