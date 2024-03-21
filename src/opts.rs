@@ -35,11 +35,6 @@ pub struct Cli {
     )]
     pub network: Network,
 
-    /// Sets the wallet data directory.
-    /// Default value : "~/.bdk-bitcoin
-    #[clap(name = "DATADIR", short = 'd', long = "datadir")]
-    pub datadir: Option<PathBuf>,
-
     /// Command to execute.
     #[clap(subcommand)]
     pub command: Command,
@@ -67,6 +62,10 @@ pub enum Command {
     /// needs backend like `sync` and `broadcast`, compile the binary with specific backend feature
     /// and use the configuration options below to configure for that backend.
     Wallet {
+        /// Sets the wallet data directory.
+        /// Default value : "~/.bdk-bitcoin
+        #[clap(name = "DATADIR", short = 'w', long = "walletdir")]
+        datadir: Option<PathBuf>,
         #[clap(flatten)]
         wallet_opts: WalletOpts,
         #[clap(subcommand)]
