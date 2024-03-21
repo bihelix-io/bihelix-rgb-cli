@@ -30,7 +30,6 @@ use std::path::PathBuf;
 
 use rgbstd::resolvers::ResolveHeight;
 use rgbstd::validation;
-use rgbstd::validation::ResolveWitness;
 use rgbstd::XOutpoint;
 
 use strict_types::encoding::{DeserializeError, Ident, SerializeError};
