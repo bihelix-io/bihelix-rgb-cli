@@ -12,11 +12,11 @@ cd bihelix-rgb-cli
 cargo build --release
 ```
 
-
-### Query the RGB20 asset
+### Query the RGB20 asset two ways
 ```shell
+#1 based on your stock.dat, contrac id, you can run this shell to query your asset in the local
+bihelix-rgb-cli -n network rgb -d $rgb_stash state $contract_id RGB20 --address $btc_address
 
-# based on your stock.dat, contrac id, and rgb consigment file(Notes: put your stock.dat, and consignment file in the data directory), you can run this shell to query your asset in the local
+#2 based on your stock.dat, contrac id, and rgb consigment file(Notes: put your stock.dat, and consignment file in the data directory), you can run this shell to query your asset in the local
 bash demo/query_asset.sh
 ```
-
