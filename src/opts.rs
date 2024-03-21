@@ -26,7 +26,7 @@ pub struct Cli {
     #[arg(short, long)]
     pub verbose: bool,
 
-    /// Sets the network.
+    /// Sets the network. bitcoin|testnet|regtest|signet.
     #[clap(
         name = "NETWORK",
         short = 'n',

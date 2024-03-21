@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -6,31 +7,35 @@ use std::str::FromStr;
 use amplify::hex::ToHex;
 use amplify::Array;
 use amplify::{
-    confinement::{U16, U24}, Display
+    confinement::{U16, U24},
+    Display,
 };
+use bdk::bitcoin::Network;
+use bdk::electrum_client::ElectrumApi;
 use bp::{Outpoint, Vout};
 use psbt::{Psbt, PsbtVer, RgbOutExt};
+use seals::txout::SealTxid;
 
+use crate::cmds::runtime::Runtime;
 use anyhow::anyhow;
 use bp::seals::txout::CloseMethod;
 use clap::{Subcommand, ValueEnum};
 use rgb::validation::Validity;
-use rgb::OutputSeal;
 use rgb::BlindingFactor;
+use rgb::OutputSeal;
 use rgb_rt::{Resolver, RuntimeError};
-use rgbstd::containers::{Bindle, BindleContent, Transfer, UniversalBindle, BuilderSeal};
+use rgb_schemata::{nia_rgb20, nia_schema};
+use rgbstd::containers::{Bindle, BindleContent, BuilderSeal, Transfer, UniversalBindle};
 use rgbstd::contract::{ContractId, GenesisSeal, GraphSeal, StateType};
 use rgbstd::interface::{ContractBuilder, FilterExclude, IfaceId, SchemaIfaces};
+use rgbstd::invoice::{Beneficiary, RgbInvoiceBuilder, XChainNet};
 use rgbstd::persistence::{Inventory, Stash};
 use rgbstd::schema::SchemaId;
 use rgbstd::XChain;
-use rgbstd::invoice::{Beneficiary, RgbInvoiceBuilder, XChainNet};
 use serde_json::Value::Null as JsonNull;
 use strict_types::encoding::{FieldName, StrictSerialize, TypeName};
 use strict_types::tn;
 use strict_types::StrictVal;
-use crate::cmds::runtime::Runtime;
-use rgb_schemata::{nia_rgb20, nia_schema};
 
 /// Rgb operation subcommands
 
@@ -49,8 +54,6 @@ pub enum InspectFormat {
 #[display(lowercase)]
 #[allow(clippy::large_enum_variant)]
 pub enum RgbSubCommand {
- 
-
     /// Prints out list of known RGB schemata
     Schemata,
     /// Prints out list of known RGB interfaces
@@ -103,6 +106,10 @@ pub enum RgbSubCommand {
 
         /// Interface to interpret the state data
         iface: String,
+
+        /// address conflict with all
+        #[clap(long, conflicts_with = "all")]
+        address: Option<String>,
     },
 
     /// Issues new contract
@@ -118,7 +125,6 @@ pub enum RgbSubCommand {
     /// Create new invoice
     #[display("invoice")]
     Invoice {
-
         /// Contract identifier
         contract_id: ContractId,
 
@@ -130,7 +136,6 @@ pub enum RgbSubCommand {
         seal: String,
     },
 
-   
     /// Inspects any RGB data file
     #[display("inspect")]
     Inspect {
@@ -167,11 +172,8 @@ pub enum RgbSubCommand {
 
         /// PSBT file.
         psbt_file: PathBuf,
-    
-   
     },
 }
-
 
 pub fn handle_rgb_subcommand(
     data_dir: PathBuf,
@@ -179,12 +181,18 @@ pub fn handle_rgb_subcommand(
     electrum: Option<String>,
     subcommand: RgbSubCommand,
 ) -> Result<serde_json::Value, anyhow::Error> {
-    let electrum = electrum.unwrap_or_else(|| chain.to_string());
-    let mut resolver = Resolver::new(&electrum)?;
+    let electrum = electrum.as_deref().unwrap_or_else(|| match chain {
+        Network::Bitcoin => "blockstream.info:110",
+        Network::Testnet => "blockstream.info:143",
+        _ => {
+            eprint!("No electrum server for this network");
+            std::process::exit(1);
+        }
+    });
+    let mut resolver = Resolver::new(electrum)?;
     let mut runtime = Runtime::load(data_dir.clone(), chain).map_err(|err| anyhow!("{}", err))?;
 
     match subcommand {
-      
         RgbSubCommand::Schemata => {
             for id in runtime.schema_ids()? {
                 print!("{id} ");
@@ -221,7 +229,8 @@ pub fn handle_rgb_subcommand(
             let iimpl_bindle = nia_rgb20().bindle();
             eprintln!("iimpl_bindle {iimpl_bindle}");
 
-            iimpl_bindle.save("your_custom_path/demo/rgb-schemata/NonInflatableAssets-RGB20.rgb")?;
+            iimpl_bindle
+                .save("your_custom_path/demo/rgb-schemata/NonInflatableAssets-RGB20.rgb")?;
             Ok(JsonNull)
         }
         RgbSubCommand::Import { armored, file } => {
@@ -260,16 +269,19 @@ pub fn handle_rgb_subcommand(
                     }
                     UniversalBindle::Contract(bindle) => {
                         let id = bindle.id();
-                        let contract = bindle.unbindle().validate(&mut resolver, true).map_err(|c| {
-                            anyhow!("{}", c.validation_status().expect("just validated"))
-                        })?;
+                        let contract =
+                            bindle
+                                .unbindle()
+                                .validate(&mut resolver, true)
+                                .map_err(|c| {
+                                    anyhow!("{}", c.validation_status().expect("just validated"))
+                                })?;
                         runtime
                             .import_contract(contract, &mut resolver)
                             .map_err(|err| anyhow!("{}", err))?;
                         eprintln!("Contract {id} imported to the stash");
                     }
                     UniversalBindle::Transfer(_) => todo!(),
-                    
                 };
             }
             Ok(JsonNull)
@@ -322,216 +334,251 @@ pub fn handle_rgb_subcommand(
             }
             Ok(JsonNull)
         }
-    
+
         RgbSubCommand::State {
             all,
             contract_id,
             iface,
+            address,
         } => {
             let iface = runtime.iface_by_name(&tn!(iface.to_owned()))?.clone();
-                let contract = runtime.contract_iface_id(contract_id, iface.iface_id()).map_err(|err| anyhow!("{}", err))?;
-               
-                println!("Global:");
-                for global in &contract.iface.global_state {
-                    
-                    if let Ok(values) = contract.global(global.name.clone()) {
-                        for val in values {
-                            println!("  {} := {}", global.name, val);
-                        }
+            let contract = runtime
+                .contract_iface_id(contract_id, iface.iface_id())
+                .map_err(|err| anyhow!("{}", err))?;
+
+            println!("Global:");
+            for global in &contract.iface.global_state {
+                if let Ok(values) = contract.global(global.name.clone()) {
+                    for val in values {
+                        println!("  {} := {}", global.name, val);
                     }
                 }
+            }
 
-                println!("\nOwned:");
-                for owned in &contract.iface.assignments {
-                    println!("  {}:", owned.name);
+            let utxo = address.map(|address| {
+                let client = bdk::electrum_client::Client::new(&electrum).unwrap();
+                client
+                    .script_list_unspent(
+                        &bdk::bitcoin::Address::from_str(&address)
+                            .unwrap()
+                            .require_network(*chain)
+                            .unwrap()
+                            .script_pubkey(),
+                    )
+                    .unwrap()
+                    .into_iter()
+                    .map(|x| format!("{}:{}", x.tx_hash, x.tx_pos))
+                    .collect::<HashSet<_>>()
+            });
+
+            println!("\nOwned:");
+            for owned in &contract.iface.assignments {
+                println!("  {}:", owned.name);
+                if let Some(utxo) = utxo {
                     if let Ok(allocations) = contract.fungible(owned.name.clone(), &runtime) {
+                        allocations
+                            .iter()
+                            .filter(|x| {
+                                let seal = x.owner.as_reduced_unsafe();
+                                let outpoint = seal.txid.map_to_outpoint(seal.vout).unwrap();
+                                utxo.contains(&outpoint.to_string())
+                            })
+                            .for_each(|x| {
+                                println!(
+                                    "    amount={}, utxo={}, witness={} # owned by the wallet",
+                                    x.value, x.owner, x.witness
+                                );
+                            });
+                    }
+                    return Ok(JsonNull);
+                }
+                if let Ok(allocations) = contract.fungible(owned.name.clone(), &runtime) {
+                    for allocation in allocations {
+                        println!(
+                            "    amount={}, utxo={}, witness={} # owned by the wallet",
+                            allocation.value, allocation.owner, allocation.witness
+                        );
+                    }
+                }
+                if all {
+                    if let Ok(allocations) =
+                        contract.fungible(owned.name.clone(), &FilterExclude(&runtime))
+                    {
                         for allocation in allocations {
                             println!(
-                                "    amount={}, utxo={}, witness={} # owned by the wallet",
+                                "    amount={}, utxo={}, witness={} # owner unknown",
                                 allocation.value, allocation.owner, allocation.witness
                             );
                         }
                     }
-                    if all {
-                        if let Ok(allocations) =
-                            contract.fungible(owned.name.clone(), &FilterExclude(&runtime))
-                        {
-                            for allocation in allocations {
-                                println!(
-                                    "    amount={}, utxo={}, witness={} # owner unknown",
-                                    allocation.value, allocation.owner, allocation.witness
-                                );
-                            }
-                        }
-                    }
-                    // TODO: Print out other types of state
                 }
+                // TODO: Print out other types of state
+            }
             Ok(JsonNull)
         }
-        RgbSubCommand::Issue {
-            schema,
-            contract,
-        } => {
+        RgbSubCommand::Issue { schema, contract } => {
             let file = fs::File::open(contract)?;
 
-                let code = serde_yaml::from_reader::<_, serde_yaml::Value>(file)?;
+            let code = serde_yaml::from_reader::<_, serde_yaml::Value>(file)?;
 
-                let code = code
-                    .as_mapping()
-                    .expect("invalid YAML root-level structure");
+            let code = code
+                .as_mapping()
+                .expect("invalid YAML root-level structure");
 
-                let iface_name = code
-                    .get("interface")
-                    .expect("contract must specify interface under which it is constructed")
-                    .as_str()
-                    .expect("interface name must be a string");
-                let SchemaIfaces {
-                    ref schema,
-                    ref iimpls,
-                } = runtime.schema(schema)?;
-                let iface_name = tn!(iface_name.to_owned());
-                let iface = runtime
-                    .iface_by_name(&iface_name)
-                    .or_else(|_| {
-                        let id = IfaceId::from_str(iface_name.as_str())?;
-                        runtime.iface_by_id(id).map_err(RuntimeError::from)
-                    }).expect("get iface failed")
-                    .clone();
-                let iface_id = iface.iface_id();
-                let iface_impl = iimpls.get(&iface_id).ok_or_else(|| {
+            let iface_name = code
+                .get("interface")
+                .expect("contract must specify interface under which it is constructed")
+                .as_str()
+                .expect("interface name must be a string");
+            let SchemaIfaces {
+                ref schema,
+                ref iimpls,
+            } = runtime.schema(schema)?;
+            let iface_name = tn!(iface_name.to_owned());
+            let iface = runtime
+                .iface_by_name(&iface_name)
+                .or_else(|_| {
+                    let id = IfaceId::from_str(iface_name.as_str())?;
+                    runtime.iface_by_id(id).map_err(RuntimeError::from)
+                })
+                .expect("get iface failed")
+                .clone();
+            let iface_id = iface.iface_id();
+            let iface_impl = iimpls
+                .get(&iface_id)
+                .ok_or_else(|| {
                     RuntimeError::Custom(format!(
                         "no known interface implementation for {iface_name}"
                     ))
-                }).expect("get iface impl failed");
-                let types = &schema.type_system;
+                })
+                .expect("get iface impl failed");
+            let types = &schema.type_system;
 
-                let mut builder = ContractBuilder::testnet(
-                    iface.clone(),
-                    schema.clone(),
-                    iface_impl.clone(),
-                )?;
+            let mut builder =
+                ContractBuilder::testnet(iface.clone(), schema.clone(), iface_impl.clone())?;
 
-                if let Some(globals) = code.get("globals") {
-                    for (name, val) in globals
-                        .as_mapping()
-                        .expect("invalid YAML: globals must be an mapping")
-                    {
-                        let name = name
-                            .as_str()
-                            .expect("invalid YAML: global name must be a string");
-                        let name = iface
-                            .genesis
-                            .global
-                            .iter()
-                            .find(|(n, _)| n.as_str() == name)
-                            .and_then(|(_, spec)| spec.name.as_ref())
-                            .map(FieldName::as_str)
-                            .unwrap_or(name);
-                        let state_type = iface_impl
-                            .global_state
-                            .iter()
-                            .find(|info| info.name.as_str() == name)
-                            .unwrap_or_else(|| panic!("unknown type name '{name}'"))
-                            .id;
-                        let sem_id = schema
-                            .global_types
-                            .get(&state_type)
-                            .expect("invalid schema implementation")
-                            .sem_id;
-                        let val = StrictVal::from(val.clone());
-                        let typed_val = types
-                            .typify(val, sem_id)
-                            .expect("global type doesn't match type definition");
+            if let Some(globals) = code.get("globals") {
+                for (name, val) in globals
+                    .as_mapping()
+                    .expect("invalid YAML: globals must be an mapping")
+                {
+                    let name = name
+                        .as_str()
+                        .expect("invalid YAML: global name must be a string");
+                    let name = iface
+                        .genesis
+                        .global
+                        .iter()
+                        .find(|(n, _)| n.as_str() == name)
+                        .and_then(|(_, spec)| spec.name.as_ref())
+                        .map(FieldName::as_str)
+                        .unwrap_or(name);
+                    let state_type = iface_impl
+                        .global_state
+                        .iter()
+                        .find(|info| info.name.as_str() == name)
+                        .unwrap_or_else(|| panic!("unknown type name '{name}'"))
+                        .id;
+                    let sem_id = schema
+                        .global_types
+                        .get(&state_type)
+                        .expect("invalid schema implementation")
+                        .sem_id;
+                    let val = StrictVal::from(val.clone());
+                    let typed_val = types
+                        .typify(val, sem_id)
+                        .expect("global type doesn't match type definition");
 
-                        let serialized = types
-                            .strict_serialize_type::<U16>(&typed_val)
-                            .expect("internal error");
-                        // Workaround for borrow checker:
-                        let field_name =
-                            FieldName::try_from(name.to_owned()).expect("invalid type name");
-                        builder = builder
-                            .add_global_state(field_name, serialized)
-                            .expect("invalid global state data");
-                    }
+                    let serialized = types
+                        .strict_serialize_type::<U16>(&typed_val)
+                        .expect("internal error");
+                    // Workaround for borrow checker:
+                    let field_name =
+                        FieldName::try_from(name.to_owned()).expect("invalid type name");
+                    builder = builder
+                        .add_global_state(field_name, serialized)
+                        .expect("invalid global state data");
                 }
+            }
 
-                if let Some(assignments) = code.get("assignments") {
-                    for (name, val) in assignments
-                        .as_mapping()
-                        .expect("invalid YAML: assignments must be an mapping")
-                    {
-                        let name = name
-                            .as_str()
-                            .expect("invalid YAML: assignments name must be a string");
-                        let name = iface
-                            .genesis
-                            .assignments
-                            .iter()
-                            .find(|(n, _)| n.as_str() == name)
-                            .and_then(|(_, spec)| spec.name.as_ref())
-                            .map(FieldName::as_str)
-                            .unwrap_or(name);
-                        let state_type = iface_impl
-                            .assignments
-                            .iter()
-                            .find(|info| info.name.as_str() == name)
-                            .expect("unknown type name")
-                            .id;
-                        let state_schema = schema
-                            .owned_types
-                            .get(&state_type)
-                            .expect("invalid schema implementation");
+            if let Some(assignments) = code.get("assignments") {
+                for (name, val) in assignments
+                    .as_mapping()
+                    .expect("invalid YAML: assignments must be an mapping")
+                {
+                    let name = name
+                        .as_str()
+                        .expect("invalid YAML: assignments name must be a string");
+                    let name = iface
+                        .genesis
+                        .assignments
+                        .iter()
+                        .find(|(n, _)| n.as_str() == name)
+                        .and_then(|(_, spec)| spec.name.as_ref())
+                        .map(FieldName::as_str)
+                        .unwrap_or(name);
+                    let state_type = iface_impl
+                        .assignments
+                        .iter()
+                        .find(|info| info.name.as_str() == name)
+                        .expect("unknown type name")
+                        .id;
+                    let state_schema = schema
+                        .owned_types
+                        .get(&state_type)
+                        .expect("invalid schema implementation");
 
-                        let assign = val.as_mapping().expect("an assignment must be a mapping");
-                        let seal = assign
-                            .get("seal")
-                            .expect("assignment doesn't provide seal information")
-                            .as_str()
-                            .expect("seal must be a string");
+                    let assign = val.as_mapping().expect("an assignment must be a mapping");
+                    let seal = assign
+                        .get("seal")
+                        .expect("assignment doesn't provide seal information")
+                        .as_str()
+                        .expect("seal must be a string");
 
-                        let seal = OutputSeal::from_str(seal).expect("invalid seal definition");
-                        let seal = GenesisSeal::new_random(seal.method, seal.txid, seal.vout);
+                    let seal = OutputSeal::from_str(seal).expect("invalid seal definition");
+                    let seal = GenesisSeal::new_random(seal.method, seal.txid, seal.vout);
 
-                        // Workaround for borrow checker:
-                        let field_name =
-                            FieldName::try_from(name.to_owned()).expect("invalid type name");
-                        match state_schema.state_type() {
-                            StateType::Void => todo!(),
-                            StateType::Fungible => {
-                                let amount = assign
-                                    .get("amount")
-                                    .expect("owned state must be a fungible amount")
-                                    .as_u64()
-                                    .expect("fungible state must be an integer");
-                                let seal = BuilderSeal::Revealed(XChain::Bitcoin(seal));
-                                builder = builder
-                                    .add_fungible_state(field_name, seal, amount)
-                                    .expect("invalid global state data");
-                            }
-                            StateType::Structured => todo!(),
-                            StateType::Attachment => todo!(),
+                    // Workaround for borrow checker:
+                    let field_name =
+                        FieldName::try_from(name.to_owned()).expect("invalid type name");
+                    match state_schema.state_type() {
+                        StateType::Void => todo!(),
+                        StateType::Fungible => {
+                            let amount = assign
+                                .get("amount")
+                                .expect("owned state must be a fungible amount")
+                                .as_u64()
+                                .expect("fungible state must be an integer");
+                            let seal = BuilderSeal::Revealed(XChain::Bitcoin(seal));
+                            builder = builder
+                                .add_fungible_state(field_name, seal, amount)
+                                .expect("invalid global state data");
                         }
+                        StateType::Structured => todo!(),
+                        StateType::Attachment => todo!(),
                     }
                 }
+            }
 
-                let contract = builder.issue_contract().expect("failure issuing contract");
-                let id = contract.contract_id();
-                let validated_contract = contract
-                    .validate(&mut resolver, true)
-                    .map_err(|consignment| {
-                        RuntimeError::IncompleteContract(
-                            consignment
-                                .into_validation_status()
-                                .expect("just validated"),
-                        )
-                    }).unwrap();
-                runtime
-                    .import_contract(validated_contract, &mut resolver)
-                    .expect("failure importing issued contract");
-                eprintln!(
-                    "A new contract {id} is issued and added to the stash.\nUse `export` command \
+            let contract = builder.issue_contract().expect("failure issuing contract");
+            let id = contract.contract_id();
+            let validated_contract = contract
+                .validate(&mut resolver, true)
+                .map_err(|consignment| {
+                    RuntimeError::IncompleteContract(
+                        consignment
+                            .into_validation_status()
+                            .expect("just validated"),
+                    )
+                })
+                .unwrap();
+            runtime
+                .import_contract(validated_contract, &mut resolver)
+                .expect("failure importing issued contract");
+            eprintln!(
+                "A new contract {id} is issued and added to the stash.\nUse `export` command \
                      to export the contract."
-                );
+            );
             Ok(JsonNull)
         }
         RgbSubCommand::Inspect { file, format } => {
@@ -543,9 +590,7 @@ pub fn handle_rgb_subcommand(
                 InspectFormat::Yaml => {
                     serde_yaml::to_string(&bindle).expect("unable to present as YAML")
                 }
-                InspectFormat::Toml => {
-                    toml::to_string(&bindle).expect("unable to present as TOML")
-                }
+                InspectFormat::Toml => toml::to_string(&bindle).expect("unable to present as TOML"),
                 InspectFormat::Json => {
                     serde_json::to_string(&bindle).expect("unable to present as JSON")
                 }
@@ -555,34 +600,35 @@ pub fn handle_rgb_subcommand(
             println!("{s}");
             Ok(JsonNull)
         }
-        
+
         RgbSubCommand::Validate { file } => {
-                let bindle = Bindle::<Transfer>::load_file(file)?;
-                let consignment = bindle.unbindle();
-                resolver.add_terminals(&consignment);
-                let status =
-                    match consignment.validate(&mut resolver, true) {
-                        Ok(consignment) => consignment.into_validation_status(),
-                        Err(consignment) => consignment.into_validation_status(),
-                    }
-                    .expect("just validated");
-                if status.validity() == Validity::Valid {
-                    eprintln!("The provided consignment is valid")
-                } else {
-                    eprintln!("{status}");
-                }
+            let bindle = Bindle::<Transfer>::load_file(file)?;
+            let consignment = bindle.unbindle();
+            resolver.add_terminals(&consignment);
+            let status = match consignment.validate(&mut resolver, true) {
+                Ok(consignment) => consignment.into_validation_status(),
+                Err(consignment) => consignment.into_validation_status(),
+            }
+            .expect("just validated");
+            if status.validity() == Validity::Valid {
+                eprintln!("The provided consignment is valid")
+            } else {
+                eprintln!("{status}");
+            }
             Ok(JsonNull)
         }
-        RgbSubCommand::Accept {  force, file } => {
+        RgbSubCommand::Accept { force, file } => {
             let bindle = Bindle::<Transfer>::load_file(file)?;
-                let consignment = bindle.unbindle();
-                resolver.add_terminals(&consignment);
-                let transfer = consignment
-                    .validate(&mut resolver, true)
-                    .unwrap_or_else(|c| c);
-                eprintln!("{}", transfer.validation_status().expect("just validated"));
-                runtime.accept_transfer(transfer, &mut resolver, force).unwrap();
-                eprintln!("Transfer accepted into the stash");
+            let consignment = bindle.unbindle();
+            resolver.add_terminals(&consignment);
+            let transfer = consignment
+                .validate(&mut resolver, true)
+                .unwrap_or_else(|c| c);
+            eprintln!("{}", transfer.validation_status().expect("just validated"));
+            runtime
+                .accept_transfer(transfer, &mut resolver, force)
+                .unwrap();
+            eprintln!("Transfer accepted into the stash");
             Ok(JsonNull)
         }
         RgbSubCommand::SetHost { psbt_file, method } => {
@@ -598,7 +644,9 @@ pub fn handle_rgb_subcommand(
                         .find(|(o, outp)| o.script_pubkey.is_op_return() && !outp.is_opret_host())
                         .and_then(|(_, outp)| {
                             psbt_modified = true;
-                            outp.set_rgb_velocity_hint(rgbstd::interface::VelocityHint::Unspecified);
+                            outp.set_rgb_velocity_hint(
+                                rgbstd::interface::VelocityHint::Unspecified,
+                            );
                             outp.set_opret_host().ok()
                         });
                 }
@@ -625,31 +673,35 @@ pub fn handle_rgb_subcommand(
             Ok(JsonNull)
         }
         RgbSubCommand::Invoice {
-                contract_id,
-                iface,
-                value,
-                seal,
+            contract_id,
+            iface,
+            value,
+            seal,
         } => {
             let iface = TypeName::try_from(iface.to_owned()).expect("invalid interface name");
-                let network = bpstd::Network::Testnet3;
-                let mut output_vec = seal.split(":");
-                let txid_str = output_vec.next().unwrap();
-                let vout_str = output_vec.next().unwrap();
-           
-                let output = Outpoint::new(Array::from_str(txid_str).unwrap().into(), Vout::from_str(vout_str).unwrap());
-                let graph_seal = XChain::Bitcoin(GraphSeal::opret_first_rand_from(output));
-                runtime.store_seal_secret(graph_seal).expect("store seal secret error");
-                let beneficiary = Beneficiary::BlindedSeal(*graph_seal.to_secret_seal().as_reduced_unsafe());
-             
-                let invoice = RgbInvoiceBuilder::new(XChainNet::bitcoin(network, beneficiary))
-                    .set_contract(contract_id)
-                    .set_interface(iface)
-                    .set_amount_raw(value)
-                    .finish();
-                println!("{invoice}");
+            let network = bpstd::Network::Testnet3;
+            let mut output_vec = seal.split(":");
+            let txid_str = output_vec.next().unwrap();
+            let vout_str = output_vec.next().unwrap();
+
+            let output = Outpoint::new(
+                Array::from_str(txid_str).unwrap().into(),
+                Vout::from_str(vout_str).unwrap(),
+            );
+            let graph_seal = XChain::Bitcoin(GraphSeal::opret_first_rand_from(output));
+            runtime
+                .store_seal_secret(graph_seal)
+                .expect("store seal secret error");
+            let beneficiary =
+                Beneficiary::BlindedSeal(*graph_seal.to_secret_seal().as_reduced_unsafe());
+
+            let invoice = RgbInvoiceBuilder::new(XChainNet::bitcoin(network, beneficiary))
+                .set_contract(contract_id)
+                .set_interface(iface)
+                .set_amount_raw(value)
+                .finish();
+            println!("{invoice}");
             Ok(JsonNull)
         }
-    
     }
 }
-

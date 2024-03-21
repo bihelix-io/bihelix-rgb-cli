@@ -19,23 +19,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::convert::Infallible;
-use std::io;
-use std::ops::{Deref, DerefMut};
-use std::path::PathBuf;
 use rgbfs::StockFs;
 use rgbstd::containers::{Contract, LoadError, Transfer};
 use rgbstd::interface::{BuilderError, OutpointFilter};
 use rgbstd::persistence::{Inventory, InventoryDataError, InventoryError, StashError, Stock};
+use std::convert::Infallible;
+use std::io;
+use std::ops::{Deref, DerefMut};
+use std::path::PathBuf;
 
 use rgbstd::resolvers::ResolveHeight;
-use rgbstd::validation::ResolveWitness;
 use rgbstd::validation;
+use rgbstd::validation::ResolveWitness;
 use rgbstd::XOutpoint;
 
 use strict_types::encoding::{DeserializeError, Ident, SerializeError};
 
-use amplify::{Display,Error, From, Getters};
+use amplify::{Display, Error, From, Getters};
 
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
@@ -99,7 +99,6 @@ impl From<Infallible> for RuntimeError {
 pub struct Runtime {
     #[getter(skip)]
     stock: Stock,
-
 }
 
 impl Deref for Runtime {
@@ -116,14 +115,16 @@ impl DerefMut for Runtime {
 }
 impl OutpointFilter for Runtime {
     fn include_output(&self, _output: impl Into<XOutpoint>) -> bool {
-
         true
     }
 }
 use std::fs;
 #[allow(clippy::result_large_err)]
 impl Runtime {
-    pub fn load(mut data_dir: PathBuf, chain: &bdk::bitcoin::Network) -> Result<Self, RuntimeError> {
+    pub fn load(
+        mut data_dir: PathBuf,
+        chain: &bdk::bitcoin::Network,
+    ) -> Result<Self, RuntimeError> {
         data_dir.push(chain.to_string());
         #[cfg(feature = "log")]
         debug!("Using data directory '{}'", data_dir.display());
@@ -147,11 +148,8 @@ impl Runtime {
 
         let mut wallets_path = data_dir.clone();
         wallets_path.push("wallets.yml");
-   
 
-        Ok(Self {
-            stock,
-        })
+        Ok(Self { stock })
     }
 
     pub fn import_contract<R: ResolveHeight>(
@@ -166,6 +164,7 @@ impl Runtime {
             .import_contract(contract, resolver)
             .map_err(RuntimeError::from)
     }
+    #[allow(dead_code)]
     pub fn validate_transfer(
         &mut self,
         transfer: Transfer,
@@ -190,8 +189,6 @@ impl Runtime {
             .accept_transfer(transfer, resolver, force)
             .map_err(RuntimeError::from)
     }
-    
-
 }
 
 impl Drop for Runtime {

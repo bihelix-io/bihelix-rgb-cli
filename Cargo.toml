@@ -78,4 +78,5 @@ log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug
 rand = "0.8.5"
 
 
-
+[profile.release]
+strip = "symbols"
