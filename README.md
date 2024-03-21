@@ -1,7 +1,8 @@
 
 # BiHelix RGB CLI
-The rgb command-line tool which combined with the Bitcoin Development Kit and the rgb 0.11 libraries, developed by the Behelix Team is used to import, export, issue, and query your off-chain RGB20(currently support RGB20) assets.
-Notes: In the current stage, the user can only import, and query their rgb20 asset by this cli tool, can not transfer the rgb asset(bihelix-cli don't include rgb single transfer).
+Introducing the revolutionary RGB command-line tool, meticulously crafted by the BiHelix Team. Leveraging the power of the Bitcoin Development Kit and the latest rgb v0.11 libraries, this tool empowers users to seamlessly import, export, issue, and inquire about their off-chain RGB20 assets. 
+
+**Please note, at this stage, users can import and inquire about their rgb20 assets using this cutting-edge CLI tool, with forthcoming support for more asset categories transfer. Stay tuned as we continue to innovate and elevate the Bitcoin blockchain experience.**
 
 # Installation
 Clone the repo from the github and compile it.
@@ -21,5 +22,5 @@ cd ./target/release
 ## Query the RGB20 asset
 Open PowerShell(Windows) or Terminal(MacOS) and types cmd as followed.
 ```bash
-./bihelix-rgb-cli -n bitcoin rgb -d ./data state [contract id] RGB20 --address [your bitcoin address]
+./bihelix-rgb-cli -n bitcoin rgb -d ./data state <contract id> RGB20 --address <your bitcoin address>
 ```
