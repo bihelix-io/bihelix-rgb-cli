@@ -164,17 +164,6 @@ impl Runtime {
             .import_contract(contract, resolver)
             .map_err(RuntimeError::from)
     }
-    #[allow(dead_code)]
-    pub fn validate_transfer(
-        &mut self,
-        transfer: Transfer,
-        resolver: &mut impl ResolveWitness,
-    ) -> Result<Transfer, RuntimeError> {
-        transfer
-            .validate(resolver, true)
-            .map_err(|invalid| invalid.validation_status().expect("just validated").clone())
-            .map_err(RuntimeError::from)
-    }
 
     pub fn accept_transfer<R: ResolveHeight>(
         &mut self,
