@@ -29,7 +29,6 @@ use rgbstd::interface::{BuilderError, OutpointFilter};
 use rgbstd::persistence::{Inventory, InventoryDataError, InventoryError, StashError, Stock};
 
 use rgbstd::resolvers::ResolveHeight;
-use rgbstd::validation::ResolveWitness;
 use rgbstd::validation;
 use rgbstd::XOutpoint;
 
@@ -164,16 +163,6 @@ impl Runtime {
     {
         self.stock
             .import_contract(contract, resolver)
-            .map_err(RuntimeError::from)
-    }
-    pub fn validate_transfer(
-        &mut self,
-        transfer: Transfer,
-        resolver: &mut impl ResolveWitness,
-    ) -> Result<Transfer, RuntimeError> {
-        transfer
-            .validate(resolver, true)
-            .map_err(|invalid| invalid.validation_status().expect("just validated").clone())
             .map_err(RuntimeError::from)
     }
 
