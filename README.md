@@ -12,20 +12,11 @@ cd bihelix-rgb-cli
 cargo build --release
 ```
 
-### Generate your pub/prv key
-```shell
-
-# generate your first bdk wallet descriptor
-bash demo/run_generate_address.sh
-# then it will prints out, so it's your public key and private key, you can use it to create transaction and sign transaction:
-"[2b3050bc/86'/1'/0'/9]tprv8hy89tKrseaHXP5mWnWao7Q9nHEge994uuzd9PUGLBdwhyKmCrvhENVY6ETQUE1zJh8EoXj9sxU6AGSGEWDG3EAoEYx2NCyQqoJByHiKbpt/*"
-"[2b3050bc/86'/1'/0'/9]tpubDEfAJJN722FxQr7ZQSBBCX4GMJkcoUKyVDbQRuWZkTSLYTaXqFkHQs7QGNut824tftQaPavf3D4XJFLXZwcUZ2fyhiG4pmRCufsGwACps8g/*"
-```
 
 ### Query the RGB20 asset
 ```shell
 
-# based on your stock.dat, contrac id, and rgb consigment file, you can run this shell to query your asset in the local
+# based on your stock.dat, contrac id, and rgb consigment file(Notes: put your stock.dat, and consignment file in the data directory), you can run this shell to query your asset in the local
 bash demo/query_asset.sh
 ```
 
