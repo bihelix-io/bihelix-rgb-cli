@@ -32,10 +32,7 @@ again
 - Copy **stock.dat** file into ./data/bitcoin directory
 
 ## Query the RGB20 asset
-Open PowerShell(Windows) or Terminal(MacOS) and types cmd as followed.
+Execute cmd as followed.
 ```bash
-./bihelix-rgb-cli -n bitcoin rgb -d ./data state [contract id] RGB20 --address [your bitcoin address]
-```
-
 ./bihelix-rgb-cli -n bitcoin rgb -d ./data state <contract id> RGB20 --address <your bitcoin address>
 ```
