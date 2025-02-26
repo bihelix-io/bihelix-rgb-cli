@@ -4,14 +4,14 @@ members = [
 ]
 
 [workspace.package]
-version = "0.11.0-beta.3"
+version = "0.11.0-beta.9"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts"]
 categories = ["cryptography::cryptocurrencies"]
 
-authors = ["xxx <xxx@xx.x>"]
-homepage = "https://github.com/xxx"
-repository = "https://github.com/xx/xx"
-rust-version = "1.67" # Due to strict encoding library
+authors = ["Jack Choi <cymqqqq@gmail.com>"]
+homepage = "https://github.com/bihelix-io"
+repository = "https://github.com/bihelix-io/bihelix-rgb-cli.git"
+rust-version = "1.78" # Due to strict encoding library
 edition = "2021"
 license = "Apache-2.0"
 
@@ -23,60 +23,72 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
 anyhow = { workspace = true }
 amplify = { workspace = true }
-baid58 = { workspace = true }
 strict_types = { workspace = true, features = ["serde"] }
 commit_verify = { workspace = true }
-bp-seals = { workspace = true }
-bp-std = { workspace = true, features = ["serde"] }
 bp-core = { workspace = true }
-rgb-std = { workspace = true, features = ["serde"] }
-rgb-runtime = { version = "0.11.0-beta.1",  features = ["all"] }
+rgb-std = { workspace = true }
 log = { workspace = true }
 env_logger = "0.10.1"
-clap = { version = "4.4.8", features = ["derive", "env"] }
-shellexpand = "3.1.0"
-serde_crate = { workspace = true }
 serde_yaml = { workspace = true }
 serde_json = "1.0.108"
 toml = "0.8.8"
-bitcoin = "0.31.1"
 rgb-psbt = { workspace = true }
-rgb-core =  { workspace = true }
-descriptors =  { workspace = true }
-bdk =   { workspace = true }
 base64 = { workspace = true }
-rgb-persist-fs ={ workspace = true }
-dirs-next = "2.0.0"
 rgb-schemata = { workspace = true }
 rand = { workspace = true }
+bp-seals ={ workspace = true }
+rgb-interfaces = { workspace = true }
+rocksdb = { workspace = true }
+rgb-core = { workspace = true }
+bp-std =  { workspace = true }
+bp-electrum=  { workspace = true }
+strict_encoding=  { workspace = true }
+rgb-runtime = { workspace = true }
+serde ={ workspace = true }
+axum = { workspace = true }
+axum-extra = { workspace = true }
+axum-macros = { workspace = true }
+tokio = { workspace = true }
+tower-http = { workspace = true }
+clap = { workspace = true }
+
 
 [workspace.dependencies]
-
-rgb-schemata =  "0.11.0-beta.4"
-rgb-persist-fs = { version = "0.11.0" }
+clap = {version="4.5.20", features = ["derive"]}
+tower-http = { version = "0.6.1", features = ["cors"] }
+serde = "1.0"
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.7.5", features = ["multipart"] }
+axum-extra = "0.9.3"
+axum-macros = "0.4.1"  
+bp-electrum = "0.11.0-beta.9"
+bp-std = "0.11.0-beta.9"
+rgb-core = "0.11.0-beta.9"
+rgb-runtime = { version = "0.11.0-beta.9", features=['electrum_blocking']}
+rgb-schemata =  "0.11.0-beta.9"
 base64 = "0.13.0"
-bdk = { version = "0.29", features = ["electrum", "keys-bip39"] }
-rgb-core = "0.11.0-beta.4"
 anyhow = "1.0"
-amplify = "4.5.0"
-baid58 = "0.4.4"
-bitcoin = "0.31.1"
-commit_verify = "0.11.0-beta.3"
-strict_types = "1.6.3"
-bp-core = "0.11.0-beta.3"
-bp-seals = "0.11.0-beta.3"
-bp-std = "0.11.0-beta.3"
-descriptors = "0.11.0-beta.3"
-psbt = { version = "0.11.0-beta.3", features = ["all"] }
-rgb-std = { version = "0.11.0-beta.4", features = ["fs"] }
-rgb-psbt = { version = "0.11.0-beta.3" }
-serde_crate = { package = "serde", version = "1", features = ["derive"] }
+amplify = "4.7.0"
+baid64 = "0.2.2"
+commit_verify = { version = "0.11.0-beta.9", features = ["stl"] }
+strict_encoding = "2.7.0"
+strict_types = "2.7.2"
+
+bp-core = "0.11.0-beta.9"
+bp-seals = "0.11.0-beta.9"
+
+rgb-std = { version = "0.11.0-beta.9", features = ['serde']}
+rgb-interfaces = "0.11.0-beta.9"
+
+rgb-psbt = { version = "0.11.0-beta.9" }
 serde_yaml = "0.9.19"
 log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug"] }
 rand = "0.8.5"
+rocksdb = "0.22.0"
 
 
-[profile.release]
-strip = "symbols"
+# [profile.release]
+# strip = "symbols"
